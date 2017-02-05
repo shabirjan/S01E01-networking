@@ -6,11 +6,12 @@
 
 import UIKit
 import XCPlayground
-
+import PlaygroundSupport
 
 typealias JSONDictionary = [String: AnyObject]
 
-let url = NSURL(string: "http://localhost:8000/episodes.json")!
+var url = NSURL(string: "http://localhost:8000/episodes.json")!
+
 
 
 struct Episode {
@@ -21,7 +22,7 @@ struct Episode {
 extension Episode {
     init?(dictionary: JSONDictionary) {
         guard let id = dictionary["id"] as? String,
-            title = dictionary["title"] as? String else { return nil }
+            let title = dictionary["title"] as? String else { return nil }
         self.id = id
         self.title = title
     }
@@ -33,14 +34,15 @@ struct Media {}
 
 struct Resource<A> {
     let url: NSURL
-    let parse: NSData -> A?
+    let parse: (NSData) -> A?
 }
 
 extension Resource {
-    init(url: NSURL, parseJSON: AnyObject -> A?) {
+    init(url: NSURL, parseJSON: @escaping (AnyObject) -> A?) {
         self.url = url
         self.parse = { data in
-            let json = try? NSJSONSerialization.JSONObjectWithData(data, options: [])
+            let json = try? JSONSerialization.jsonObject(with: data as Data, options: []) as AnyObject
+                
             return json.flatMap(parseJSON)
         }
     }
@@ -56,20 +58,18 @@ extension Episode {
 
 
 final class Webservice {
-    func load<A>(resource: Resource<A>, completion: (A?) -> ()) {
-        NSURLSession.sharedSession().dataTaskWithURL(resource.url) { data, _, _ in
+    func load<A>(resource: Resource<A>, completion: @escaping (A?) -> ()) {
+        URLSession.shared.dataTask(with: resource.url as URL) { data, _, _ in
             guard let data = data else {
                 completion(nil)
                 return
             }
-            completion(resource.parse(data))
+            completion(resource.parse(data as NSData))
         }.resume()
     }
 }
+PlaygroundPage.current.needsIndefiniteExecution = true
 
-
-XCPlaygroundPage.currentPage.needsIndefiniteExecution = true
-
-Webservice().load(Episode.all) { result in
-    print(result)
+Webservice().load(resource: Episode.all) { result in
+    print(result!)
 }
